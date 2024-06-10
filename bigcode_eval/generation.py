@@ -8,7 +8,7 @@ from torch.utils.data.dataloader import DataLoader
 from transformers import StoppingCriteria, StoppingCriteriaList
 
 from bigcode_eval.utils import TokenizedDataset, complete_code
-
+from bigcode_eval.alicia_annotator import *
 
 class EndOfFunctionCriteria(StoppingCriteria):
     """Custom `StoppingCriteria` which checks if all generated functions in the batch are completed."""
@@ -138,6 +138,14 @@ def parallel_generations(
         # model.to() is not supported for 8bit and 4bit models
         model, ds_loader = accelerator.prepare(model, ds_loader)
 
+    print("[YJ] ANNOTATE MODEL START")
+    model_annotator = ModelAnnotator()
+    for layer in get_children_modules(model):
+        layer.register_forward_pre_hook(model_annotator.annotate_modules)
+        layer.register_forward_hook(model_annotator.stop_annotation)
+    model.annotator = model_annotator
+    print("[YJ] ANNOTATE MODEL END")
+    
     generations = complete_code(
         task,
         accelerator,

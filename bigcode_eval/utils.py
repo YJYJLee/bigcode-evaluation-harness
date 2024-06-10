@@ -12,6 +12,8 @@ from tqdm import tqdm
 INFILL_MODE = False
 INSTRUCTION_MODE = False
 
+import torch.profiler as profiler
+import os
 
 class TokenizedDataset(IterableDataset):
     """Tokenize and preprocess the dataset
@@ -249,12 +251,15 @@ def complete_code(
     code_gens: List[List[Optional[str]]] = [[] for _ in range(n_tasks)]
     generations = [] if not intermediate_generations else intermediate_generations
     gen_token_dict = defaultdict(list)  # dict of list of generated tokens
+
+    warmup=15
     for step, batch in tqdm(
         enumerate(dataloader),
         total=math.ceil(
             n_tasks * dataloader.dataset.n_copies / accelerator.num_processes
         ),
     ):
+        profile_cond = step>=warmup and step<warmup+5
         with torch.no_grad():
             if task.stop_words:
                 # Set the start_length after which to check for stopping to be the longest input ignoring padding
@@ -297,11 +302,14 @@ def complete_code(
                         **gen_kwargs,
                     )
                 else:
-                    generated_tokens = model.generate(
+                    # import pdb; pdb.set_trace()
+                    generated_tokens, _, prof_name, prof = model.generate(
                         input_ids=inputs,
                         num_return_sequences=batch_size,
+                        profile = profile_cond,
                         **gen_kwargs,
                     )
+                    
             # each task is generated batch_size times
             generated_tasks = batch["task_id"].repeat(batch_size)
             generated_tokens = accelerator.pad_across_processes(
@@ -322,35 +330,51 @@ def complete_code(
                     raise ValueError(
                         "intermediate_save_generations_path cannot be empty!"
                     )
-
-                code_gens = update_code_gens(
-                    task,
-                    tokenizer,
-                    limit_start,
-                    prefix,
-                    instruction_tokens,
-                    postprocess,
-                    code_gens,
-                    gen_token_dict,
-                )
-                with open(intermediate_save_generations_path, "w") as fp:
-                    json.dump(generations + code_gens, fp)
-                    print(
-                        f"intermediate generations were saved at {intermediate_save_generations_path}"
+                with profiler.record_function("MODULE_TEXT_DECODE_AG"):
+                    code_gens = update_code_gens(
+                        task,
+                        tokenizer,
+                        limit_start,
+                        prefix,
+                        instruction_tokens,
+                        postprocess,
+                        code_gens,
+                        gen_token_dict,
                     )
+                # with open(intermediate_save_generations_path, "w") as fp:
+                #     json.dump(generations + code_gens, fp)
+                #     print(
+                #         f"intermediate generations were saved at {intermediate_save_generations_path}"
+                #     )
                 # reset gen_token_dict - prevent redundant decoding
                 gen_token_dict = defaultdict(list)
 
-    code_gens = update_code_gens(
-        task,
-        tokenizer,
-        limit_start,
-        prefix,
-        instruction_tokens,
-        postprocess,
-        code_gens,
-        gen_token_dict,
-    )
+
+        if profile_cond:
+            prof.stop()
+            prof_name.append("MODULE_TEXT_DECODE_AG")
+            dump_dir = "/fsx-atom/yejinlee/paper_submission_results/bigcode_eval_34B_breakdown/1gpu_1node/"+task.__class__.__name__+"/batch_size_1"
+            os.makedirs(dump_dir, exist_ok=True)
+            profile_path = dump_dir+"/profile_sample_"+str(step)+"_gpu_0.json"
+            print("Writing result file is to ", profile_path)
+            prof.export_chrome_trace(profile_path)
+            print("Writing result file is done")
+
+            if step == warmup+4:
+                print("names to pass in = ", "*".join(prof_name))
+                exit(0)
+                
+
+        code_gens = update_code_gens(
+            task,
+            tokenizer,
+            limit_start,
+            prefix,
+            instruction_tokens,
+            postprocess,
+            code_gens,
+            gen_token_dict,
+        )
 
     generations.extend(code_gens)
     return generations
