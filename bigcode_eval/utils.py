@@ -303,7 +303,7 @@ def complete_code(
                     )
                 else:
                     # import pdb; pdb.set_trace()
-                    generated_tokens, _, prof_name, prof = model.generate(
+                    generated_tokens, prof_name, prof = model.generate(
                         input_ids=inputs,
                         num_return_sequences=batch_size,
                         profile = profile_cond,
