@@ -355,6 +355,7 @@ def complete_code(
             prof_name.append("MODULE_TEXT_DECODE_AG")
             prof_name.append("MODULE_Attention_AG")
             prof_name.append("MODULE_LlamaRotaryEmbedding_AG")
+            prof_name.append("MODULE_SCORING_AG")
             dump_dir = "/fsx-atom/yejinlee/paper_submission_results/bigcode_eval_34B_breakdown/1gpu_1node/"+task.__class__.__name__+"/batch_size_"+str(batch_size)
             os.makedirs(dump_dir, exist_ok=True)
             profile_path = dump_dir+"/profile_sample_"+str(step)+"_gpu_0.json"
