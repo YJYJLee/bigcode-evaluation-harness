@@ -395,8 +395,11 @@ def complete_code(
         #     for k in timer_results.keys():
         #         timer_results[k].append(timer_result[k])
 
+    disable_sdpa = os.environ.get('DISABLE_SDPA', False)
 
-    dump_dir = "/fsx-atom/yejinlee/paper_submission_results/radar_chart/1gpu_1node/"+task.__class__.__name__+"_codellama/batch_size_"+str(batch_size)
+    dump_dir = "/fsx-atom/yejinlee/paper_submission_results/radar_chart/1gpu_1node/"+task.__class__.__name__+"_codellama/batch_size_"+str(batch_size) if not disable_sdpa \
+        else "/fsx-atom/yejinlee/paper_submission_results/radar_chart/wo_sdpa/1gpu_1node/"+task.__class__.__name__+"_codellama/batch_size_"+str(batch_size)
+    
     os.makedirs(dump_dir, exist_ok=True)
     print("Avg Input Seq Len: ", np.average([float(sl[0]) for sl in seq_lens]))
     print("Avg Output Seq Len: ", np.average([float(sl[1]) for sl in seq_lens]))
