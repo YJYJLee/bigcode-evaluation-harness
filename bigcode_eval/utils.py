@@ -254,18 +254,45 @@ def complete_code(
     generations = [] if not intermediate_generations else intermediate_generations
     gen_token_dict = defaultdict(list)  # dict of list of generated tokens
 
-    warmup=15
+
     seq_lens = list()
     gpu_utils = list()
-    timer_results = dict()
+    timer_results = list()
     memory_capas = list()
+
+    # Warmup
+    print("Starting Warmup")
+    warmup_input = torch.tensor([[    1,   515, 19229,  1053,  2391,    13,    13,    13,  1753,   756,
+            29918,  5358, 29918, 17664, 29898, 20326, 29901,  2391, 29961,  7411,
+            1402, 16897, 29901,  5785, 29897,  1599,  6120, 29901,    13,  1678,
+            9995,  5399,   565,   297,  2183,  1051,   310,  3694, 29892,   526,
+            738,  1023,  3694, 17649,   304,  1269,   916,  1135,    13,  1678,
+            2183, 16897, 29889,    13,  1678,  8653,   756, 29918,  5358, 29918,
+            17664,  4197, 29896, 29889, 29900, 29892, 29871, 29906, 29889, 29900,
+            29892, 29871, 29941, 29889, 29900,  1402, 29871, 29900, 29889, 29945,
+            29897,    13,  1678,  7700,    13,  1678,  8653,   756, 29918,  5358,
+            29918, 17664,  4197, 29896, 29889, 29900, 29892, 29871, 29906, 29889,
+            29947, 29892, 29871, 29941, 29889, 29900, 29892, 29871, 29946, 29889,
+            29900, 29892, 29871, 29945, 29889, 29900, 29892, 29871, 29906, 29889,
+            29900,  1402, 29871, 29900, 29889, 29941, 29897,    13,  1678,  5852,
+                13,  1678,  9995]]).cuda()
+    
+    for i in range(15):
+        _, _, _, _ = model.generate(
+            input_ids=warmup_input,
+            num_return_sequences=batch_size,
+            **gen_kwargs,
+        )
+    print("Ending Warmup")
+    # Warmup
+
+
     for step, batch in tqdm(
         enumerate(dataloader),
         total=math.ceil(
             n_tasks * dataloader.dataset.n_copies / accelerator.num_processes
         ),
     ):
-        profile_cond = step>=warmup and step<warmup+5
         with torch.no_grad():
             if task.stop_words:
                 # Set the start_length after which to check for stopping to be the longest input ignoring padding
@@ -356,21 +383,20 @@ def complete_code(
                 # reset gen_token_dict - prevent redundant decoding
                 gen_token_dict = defaultdict(list)
 
-        if profile_cond:
-            seq_lens.append(seq_len)
-            gpu_utils.append(gpu_util)
-            memory_capas.append(torch.cuda.max_memory_allocated(torch.cuda.current_device()))
-            if len(timer_results)==0:
-                for k, v in timer_result.items():
-                    timer_results[k] = [v]
-            else:
-                for k in timer_results.keys():
-                    timer_results[k].append(timer_result[k])
+        seq_lens.append(seq_len)
+        gpu_utils.append(gpu_util)
+        memory_capas.append(torch.cuda.max_memory_allocated(torch.cuda.current_device()))
+        timer_results.append(timer_result)
 
-            if step == warmup+4:
-                break
+        # if len(timer_results)==0:
+        #     for k, v in timer_result.items():
+        #         timer_results[k] = [v]
+        # else:
+        #     for k in timer_results.keys():
+        #         timer_results[k].append(timer_result[k])
 
-    dump_dir = "/fsx-atom/yejinlee/sweep_final/1gpu_1node/"+task.__class__.__name__+"_codellama/batch_size_"+str(batch_size)
+
+    dump_dir = "/fsx-atom/yejinlee/paper_submission_results/radar_chart/1gpu_1node/"+task.__class__.__name__+"_codellama/batch_size_"+str(batch_size)
     os.makedirs(dump_dir, exist_ok=True)
     print("Avg Input Seq Len: ", np.average([float(sl[0]) for sl in seq_lens]))
     print("Avg Output Seq Len: ", np.average([float(sl[1]) for sl in seq_lens]))
@@ -381,16 +407,18 @@ def complete_code(
         print("Written to : ", dump_dir+"/seq_lengths.txt")
 
     with open(dump_dir+"/timer_result.txt", "w") as f:
-        f.write("\t".join(list(timer_results.keys()))+"\n")
-        f.write("\t".join([str(np.average(v)) for k, v in timer_results.items()]))
+        write_str = "\t".join(timer_results[0].keys())
+        for t in timer_results:
+            write_str += "\t".join([str(tt) for tt in t.values()])+"\n"
+        f.write(write_str)
     print("Written to : ", dump_dir+"/timer_result.txt")
 
     with open(dump_dir+"/memory_alloc.txt", "w") as f:
-        f.write("\n".join([str(g) for g in memory_capas]))
+        f.write("\n".join([str(g) for g in memory_capas])+"\n")
         print("Written to : ", dump_dir+"/memory_alloc.txt")
 
     with open(dump_dir+"/gpu_util.txt", "w") as f:
-        f.write("\n".join([str(g) for g in gpu_utils]))
+        f.write("\n".join([str(g) for g in gpu_utils])+"\n")
         print("Written to : ", dump_dir+"/gpu_util.txt")
             
     exit(0)
