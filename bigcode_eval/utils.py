@@ -381,7 +381,12 @@ def complete_code(
 
         timer_results.append(timer_result)
 
-    dump_dir = "/fsx-atom/yejinlee/paper_submission_results/latency_distribution/1gpu_1node/"+task.__class__.__name__+"_codellama/batch_size_"+str(batch_size)
+    disable_sdpa = os.environ.get('DISABLE_SDPA', False)
+
+    dump_dir = "/fsx-atom/yejinlee/paper_submission_results/latency_distribution_w_warmup/1gpu_1node/"+task.__class__.__name__+"_codellama/batch_size_"+str(batch_size) if not disable_sdpa \
+        else "/fsx-atom/yejinlee/paper_submission_results/latency_distribution_w_warmup/wo_sdpa/1gpu_1node/"+task.__class__.__name__+"_codellama/batch_size_"+str(batch_size)
+
+
     os.makedirs(dump_dir, exist_ok=True)
     with open(dump_dir+"/timer_result.txt", "w") as f:
         f.write("\t".join(list(timer_results[0].keys()))+"\n")
