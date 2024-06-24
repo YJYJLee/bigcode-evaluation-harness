@@ -241,6 +241,7 @@ def complete_code(
     save_every_k_tasks: int = -1,
     intermediate_generations: Optional[List[Optional[List[Optional[str]]]]] = None,
     intermediate_save_generations_path: Optional[str] = None,
+    model_name = None,
     **gen_kwargs,
 ):
     """Generate multiple codes for each task in the dataset using multiple GPUs with accelerate.
@@ -383,8 +384,8 @@ def complete_code(
 
     disable_sdpa = os.environ.get('DISABLE_SDPA', False)
 
-    dump_dir = "/fsx-atom/yejinlee/paper_submission_results/latency_distribution_w_warmup/1gpu_1node/"+task.__class__.__name__+"_codellama/batch_size_"+str(batch_size) if not disable_sdpa \
-        else "/fsx-atom/yejinlee/paper_submission_results/latency_distribution_w_warmup/wo_sdpa/1gpu_1node/"+task.__class__.__name__+"_codellama/batch_size_"+str(batch_size)
+    dump_dir = "/fsx-atom/yejinlee/paper_submission_results/latency_distribution_w_warmup/1gpu_1node/"+task.__class__.__name__+"_codellama/"+str(model_name)+"/batch_size_"+str(batch_size) if not disable_sdpa \
+        else "/fsx-atom/yejinlee/paper_submission_results/latency_distribution_w_warmup/wo_sdpa/1gpu_1node/"+task.__class__.__name__+"_codellama/"+str(model_name)+"/batch_size_"+str(batch_size)
 
 
     os.makedirs(dump_dir, exist_ok=True)
