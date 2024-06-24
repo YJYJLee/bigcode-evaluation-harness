@@ -396,7 +396,7 @@ def main():
                     )
             else:
                 results[task] = evaluator.evaluate(
-                    task, intermediate_generations=intermediate_generations, model_name=args.model_name
+                    task, intermediate_generations=intermediate_generations, model_name=args.model
                 )
 
     # Save all args to config
